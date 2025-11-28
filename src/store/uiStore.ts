@@ -10,7 +10,7 @@ import { persist } from 'zustand/middleware';
 
 interface UIState {
     theme: 'dark' | 'light';
-    
+
     // Flight modals
     isAddFlightModalOpen: boolean;
     isEditFlightModalOpen: boolean;
@@ -26,7 +26,6 @@ interface UIState {
     deletingTripId: string | null;
 
     // Phase 3: Import modals
-    isGmailImportModalOpen: boolean;
     isCSVImportModalOpen: boolean;
 
     // Actions
@@ -48,8 +47,6 @@ interface UIState {
     closeDeleteTripDialog: () => void;
 
     // Phase 3: Import actions
-    openGmailImportModal: () => void;
-    closeGmailImportModal: () => void;
     openCSVImportModal: () => void;
     closeCSVImportModal: () => void;
 }
@@ -72,7 +69,6 @@ export const useUIStore = create<UIState>()(
             deletingTripId: null,
 
             // Phase 3: Import modal initial states
-            isGmailImportModalOpen: false,
             isCSVImportModalOpen: false,
 
             toggleTheme: () =>
@@ -110,8 +106,6 @@ export const useUIStore = create<UIState>()(
                 set({ isDeleteTripDialogOpen: false, deletingTripId: null }),
 
             // Phase 3: Import modal actions
-            openGmailImportModal: () => set({ isGmailImportModalOpen: true }),
-            closeGmailImportModal: () => set({ isGmailImportModalOpen: false }),
             openCSVImportModal: () => set({ isCSVImportModalOpen: true }),
             closeCSVImportModal: () => set({ isCSVImportModalOpen: false }),
         }),

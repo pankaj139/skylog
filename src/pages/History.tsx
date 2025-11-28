@@ -9,7 +9,6 @@ import LoadingSpinner from '../components/common/LoadingSpinner';
 import Button from '../components/common/Button';
 import EditFlightModal from '../components/flights/EditFlightModal';
 import ConfirmDialog from '../components/common/ConfirmDialog';
-import GmailImportModal from '../components/import/GmailImportModal';
 import { useFlightsStore } from '../store/flightsStore';
 import { useAuthStore } from '../store/authStore';
 import { useUIStore } from '../store/uiStore';
@@ -31,9 +30,6 @@ export default function History() {
         deletingFlightId,
         openDeleteDialog,
         closeDeleteDialog,
-        isGmailImportModalOpen,
-        openGmailImportModal,
-        closeGmailImportModal,
     } = useUIStore();
     const [loading, setLoading] = useState(true);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -205,21 +201,9 @@ export default function History() {
                                 : `${flights.length} flight${flights.length === 1 ? '' : 's'} recorded`}
                         </p>
                     </div>
-                    <div className="flex gap-3">
-                        <Button
-                            variant="secondary"
-                            onClick={openGmailImportModal}
-                            className="flex items-center gap-2"
-                        >
-                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z" />
-                            </svg>
-                            Import from Gmail
-                        </Button>
-                        <Button variant="primary" onClick={openAddFlightModal}>
-                            + Add Flight
-                        </Button>
-                    </div>
+                    <Button variant="primary" onClick={openAddFlightModal}>
+                        + Add Flight
+                    </Button>
                 </div>
 
                 {flights.length === 0 ? (
@@ -300,11 +284,6 @@ export default function History() {
                     loading={isDeleting}
                 />
 
-                {/* Gmail Import Modal */}
-                <GmailImportModal
-                    isOpen={isGmailImportModalOpen}
-                    onClose={closeGmailImportModal}
-                />
             </main>
         </div>
     );

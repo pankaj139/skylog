@@ -10,7 +10,6 @@ import { useFlightsStore } from '../../store/flightsStore';
 import { createFlight } from '../../services/flightService';
 import type { Airport } from '../../types';
 import CSVImport from '../import/CSVImport';
-import GmailConnect from '../import/GmailConnect';
 
 interface AddFlightModalProps {
     isOpen: boolean;
@@ -142,11 +141,6 @@ export default function AddFlightModal({ isOpen, onClose }: AddFlightModalProps)
                             >
                                 Upload CSV
                             </Button>
-                        </div>
-                        <div className="bg-white/5 p-4 rounded-xl border border-white/10 hover:border-neon-blue/30 transition-colors">
-                            <h3 className="text-white font-medium mb-2">Sync with Gmail</h3>
-                            <p className="text-sm text-gray-400 mb-3">Automatically find flight confirmations.</p>
-                            <GmailConnect compact showStatus={false} />
                         </div>
                     </div>
 

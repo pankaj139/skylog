@@ -7,7 +7,6 @@ A modern, feature-rich web application for tracking your flight history, visuali
 ### 📊 Flight Management
 - **Manual Flight Entry** - Add flights with detailed information (airline, flight number, seat class, PNR, etc.)
 - **CSV Import** - Bulk import flights from CSV files
-- **Gmail Integration** - Automatically detect and import flights from Gmail confirmations
 - **Trip Organization** - Group flights into trips with photos and notes
 - **Flight History** - Browse and search your complete flight history
 
@@ -99,9 +98,6 @@ VITE_FIREBASE_APP_ID=your_app_id
 
 # Google Gemini API (Optional - for AI recommendations)
 VITE_GEMINI_API_KEY=your_gemini_api_key
-
-# Gmail API (Optional - for Gmail import)
-VITE_GOOGLE_CLIENT_ID=your_google_client_id
 ```
 
 4. **Start the development server**
@@ -170,12 +166,6 @@ flightPath/
 2. Click "Import CSV"
 3. Upload your CSV file with columns: Date, Origin, Destination, Airline, etc.
 
-**From Gmail:**
-1. Click "Import from Gmail"
-2. Authorize Gmail access
-3. Let the system detect flight confirmations
-4. Review and confirm detected flights
-
 ### Setting Up AI Recommendations
 
 1. Add your Gemini API key to `.env.local`
@@ -208,13 +198,6 @@ flightPath/
 1. Go to [Google AI Studio](https://makersuite.google.com/app/apikey)
 2. Create an API key
 3. Add to `.env.local` as `VITE_GEMINI_API_KEY`
-
-### Gmail API (Optional)
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create OAuth 2.0 credentials
-3. Add authorized redirect URIs
-4. Copy Client ID to `.env.local`
 
 ## 🎨 Design System
 
