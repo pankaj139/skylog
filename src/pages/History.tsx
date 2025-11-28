@@ -1,5 +1,16 @@
+/**
+ * History Page
+ * 
+ * Displays the user's flight history with filtering and sorting capabilities.
+ * Features collapsible filters to save viewport space on mobile devices.
+ * 
+ * Usage:
+ * <History />
+ */
+
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Filter, X } from 'lucide-react';
 import Header from '../components/layout/Header';
 import FlightCard from '../components/flights/FlightCard';
 import FlightFilters from '../components/flights/FlightFilters';
@@ -33,6 +44,7 @@ export default function History() {
     } = useUIStore();
     const [loading, setLoading] = useState(true);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [showFilters, setShowFilters] = useState(false);
     const [filters, setFilters] = useState<FilterState>({
         search: '',
         year: '',
@@ -218,18 +230,41 @@ export default function History() {
                     />
                 ) : (
                     <>
-                        {/* Filters */}
-                        <FlightFilters
-                            onFilterChange={setFilters}
-                            airlines={airlines}
-                            countries={countries}
-                            aircraftTypes={aircraftTypes}
-                        />
+                        {/* Filter Toggle Button */}
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={() => setShowFilters(!showFilters)}
+                                    className="flex items-center gap-2 px-4 py-2 glass rounded-lg border border-white/10 hover:border-neon-blue/40 transition-all duration-300 text-white"
+                                >
+                                    <Filter size={18} />
+                                    <span className="font-medium">Filters</span>
+                                    {showFilters && (
+                                        <X size={16} className="ml-1" />
+                                    )}
+                                </button>
+                                {filters.search || filters.year || filters.airline || filters.country || filters.aircraftType ? (
+                                    <span className="text-sm text-gray-400">
+                                        ({[filters.search, filters.year, filters.airline, filters.country, filters.aircraftType].filter(Boolean).length} active)
+                                    </span>
+                                ) : null}
+                            </div>
+                            {filteredFlights.length !== flights.length && (
+                                <div className="text-sm text-gray-400">
+                                    Showing {filteredFlights.length} of {flights.length} flights
+                                </div>
+                            )}
+                        </div>
 
-                        {/* Results Count */}
-                        {filteredFlights.length !== flights.length && (
-                            <div className="mb-4 text-gray-400">
-                                Showing {filteredFlights.length} of {flights.length} flights
+                        {/* Filters - Collapsible */}
+                        {showFilters && (
+                            <div className="mb-6 animate-fade-in">
+                                <FlightFilters
+                                    onFilterChange={setFilters}
+                                    airlines={airlines}
+                                    countries={countries}
+                                    aircraftTypes={aircraftTypes}
+                                />
                             </div>
                         )}
 

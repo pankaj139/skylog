@@ -65,10 +65,10 @@ export default function StatCard({ icon, value, label, delay = 0 }: StatCardProp
         : displayValue;
 
     return (
-        <div className="glass rounded-xl p-6 border border-neon-blue/20 hover:border-neon-blue/40 transition-all duration-300 hover:scale-[1.02] hover:shadow-neon flex flex-col items-center justify-center text-center min-h-[160px] group">
-            <div className="text-5xl mb-3 transition-transform group-hover:scale-110">{icon}</div>
-            <div className="text-4xl font-bold gradient-text mb-2 leading-none">{formattedValue}</div>
-            <div className="text-sm text-gray-400 uppercase tracking-widest font-medium">{label}</div>
+        <div className="glass rounded-xl p-4 sm:p-6 border border-neon-blue/20 hover:border-neon-blue/40 transition-all duration-300 hover:scale-[1.02] hover:shadow-neon flex flex-col items-center justify-center text-center min-h-[120px] sm:min-h-[160px] group">
+            <div className="text-3xl sm:text-5xl mb-2 sm:mb-3 transition-transform group-hover:scale-110">{icon}</div>
+            <div className="text-2xl sm:text-4xl font-bold gradient-text mb-1 sm:mb-2 leading-none">{formattedValue}</div>
+            <div className="text-xs sm:text-sm text-gray-400 uppercase tracking-widest font-medium">{label}</div>
         </div>
     );
 }

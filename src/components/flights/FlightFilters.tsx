@@ -1,3 +1,20 @@
+/**
+ * FlightFilters Component
+ * 
+ * Provides filtering and sorting options for flight lists.
+ * Includes search, year, airline, country, aircraft type filters, and sorting options.
+ * 
+ * Usage:
+ * <FlightFilters
+ *   onFilterChange={(filters) => console.log(filters)}
+ *   airlines={['Airline 1', 'Airline 2']}
+ *   countries={['USA', 'UK']}
+ *   aircraftTypes={['Boeing 737', 'Airbus A320']}
+ * />
+ * 
+ * Returns: FilterState object with all filter values
+ */
+
 import { useState, useEffect } from 'react';
 import Input from '../common/Input';
 
@@ -61,20 +78,20 @@ export default function FlightFilters({ onFilterChange, airlines, countries, air
     const hasActiveFilters = filters.search || filters.year || filters.airline || filters.country || filters.aircraftType;
 
     return (
-        <div className="glass rounded-xl p-6 border border-white/10 mb-6">
+        <div className="glass rounded-xl p-4 sm:p-6 border border-white/10">
             <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-white">Filters & Search</h3>
+                <h3 className="text-base sm:text-lg font-semibold text-white">Filters & Search</h3>
                 {hasActiveFilters && (
                     <button
                         onClick={handleClearFilters}
-                        className="text-sm text-neon-blue hover:text-neon-cyan transition-colors"
+                        className="text-xs sm:text-sm text-neon-blue hover:text-neon-cyan transition-colors"
                     >
                         Clear All
                     </button>
                 )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                 {/* Search */}
                 <div>
                     <Input

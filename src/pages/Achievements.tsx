@@ -5,6 +5,14 @@
  * Shows progress towards locked achievements and celebration for unlocked ones.
  */
 
+/**
+ * Achievements Page
+ * 
+ * Displays all achievements with filtering by category and status.
+ * Shows progress towards locked achievements and celebration for unlocked ones.
+ * Prevents showing notifications for achievements that were already unlocked.
+ */
+
 import { useState, useEffect, useMemo } from 'react';
 import Header from '../components/layout/Header';
 import LoadingSpinner from '../components/common/LoadingSpinner';
@@ -23,7 +31,13 @@ type ViewMode = 'grid' | 'list';
 export default function Achievements() {
     const { user } = useAuthStore();
     const { flights, setFlights } = useFlightsStore();
-    const { progress, isLoading, loadProgress, checkAndUpdateAchievements } = useAchievementsStore();
+    const { progress, isLoading, loadProgress, checkAndUpdateAchievements, clearAllNotifications } = useAchievementsStore();
+
+    // Clear any old notifications when entering the achievements page
+    // This prevents showing notifications for achievements that were already seen
+    useEffect(() => {
+        clearAllNotifications();
+    }, [clearAllNotifications]);
 
     const [filterCategory, setFilterCategory] = useState<AchievementCategory | 'all'>('all');
     const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
@@ -39,12 +53,14 @@ export default function Achievements() {
         }
     }, [user, loadProgress, setFlights, flights.length]);
 
-    // Check achievements when flights change
+    // Check achievements when flights change - but only after progress is loaded
     useEffect(() => {
-        if (user && flights.length > 0) {
+        if (user && flights.length > 0 && progress && !isLoading) {
+            // Only check for new achievements if progress has been loaded
+            // This prevents showing notifications for achievements that were already unlocked
             checkAndUpdateAchievements(user.id, flights);
         }
-    }, [user, flights, checkAndUpdateAchievements]);
+    }, [user, flights, progress, isLoading, checkAndUpdateAchievements]);
 
     // Create a map of unlocked achievement IDs for quick lookup
     const unlockedMap = useMemo(() => {

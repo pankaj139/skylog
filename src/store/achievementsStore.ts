@@ -60,23 +60,31 @@ export const useAchievementsStore = create<AchievementsState>((set, get) => ({
     /**
      * Checks for new achievements and updates progress
      * Returns array of newly unlocked achievements
+     * Only creates notifications for truly new achievements (not previously unlocked)
      */
     checkAndUpdateAchievements: async (userId: string, flights: Flight[]): Promise<Achievement[]> => {
         try {
             const { progress } = get();
-            const existingAchievements = progress?.achievements || [];
+            
+            // Don't check achievements if progress hasn't been loaded yet
+            // This prevents showing notifications for achievements that were already unlocked
+            if (!progress) {
+                return [];
+            }
+
+            const existingAchievements = progress.achievements || [];
 
             // Calculate current stats
             const stats = calculateUserStats(flights);
 
-            // Find newly unlocked achievements
+            // Find newly unlocked achievements (only those not in existingAchievements)
             const newAchievements = getNewlyUnlockedAchievements(
                 stats,
                 flights,
                 existingAchievements
             );
 
-            if (newAchievements.length > 0 || !progress) {
+            if (newAchievements.length > 0) {
                 // Update progress in Firestore
                 const updatedProgress = await updateUserProgress(
                     userId,
@@ -84,7 +92,7 @@ export const useAchievementsStore = create<AchievementsState>((set, get) => ({
                     newAchievements
                 );
 
-                // Create notifications for new achievements
+                // Create notifications ONLY for truly new achievements
                 const newNotifications: AchievementNotification[] = newAchievements.map(a => ({
                     id: `${a.id}-${Date.now()}`,
                     achievement: a,

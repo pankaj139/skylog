@@ -159,17 +159,17 @@ export default function Dashboard() {
 
             <main className="max-w-7xl mx-auto px-6 py-12">
                 {/* Welcome Section */}
-                <div className="mb-12 animate-fade-in">
-                    <h2 className="text-4xl font-bold text-white mb-3 flex items-center gap-3">
-                        Welcome Back! <span className="text-5xl">👋</span>
+                <div className="mb-8 sm:mb-12 animate-fade-in">
+                    <h2 className="text-2xl sm:text-4xl font-bold text-white mb-2 sm:mb-3 flex items-center gap-2 sm:gap-3">
+                        Welcome Back! <span className="text-3xl sm:text-5xl">👋</span>
                     </h2>
-                    <p className="text-gray-400 text-lg">
+                    <p className="text-gray-400 text-base sm:text-lg">
                         Track your journey across the globe
                     </p>
                 </div>
 
                 {/* Statistics Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-12">
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-6 mb-8 sm:mb-12">
                     <StatCard icon="✈️" value={stats.flights} label="Flights" delay={0} />
                     <StatCard icon="🌐" value={stats.airports} label="Airports" delay={100} />
                     <StatCard icon="🏢" value={stats.airlines} label="Airlines" delay={200} />
