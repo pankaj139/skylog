@@ -57,8 +57,7 @@ const createAirplaneIcon = (rotation: number) => {
 };
 
 // Component to animate airplane along a route
-function AnimatedAirplane({ flight, color }: { flight: Flight; color: string }) {
-    const map = useMap();
+function AnimatedAirplane({ flight }: { flight: Flight }) {
     const [position, setPosition] = useState<[number, number]>([
         flight.originAirport.latitude,
         flight.originAirport.longitude
@@ -188,25 +187,20 @@ export default function FlightMap2D({
 
     // Get color for flight based on color mode
     const getFlightColor = (flight: Flight): string => {
-        if (colorMode === 'airline') {
+        if (colorMode === 'by-airline') {
             // Hash airline name to generate consistent color
             const hash = flight.airline.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
             const hue = hash % 360;
             return `hsl(${hue}, 70%, 60%)`;
-        } else if (colorMode === 'class') {
-            const classColors: Record<string, string> = {
-                'First': '#ffd700',
-                'Business': '#00d4ff',
-                'Premium Economy': '#00ff88',
-                'Economy': '#00ffff',
-            };
-            return classColors[flight.seatClass || 'Economy'] || '#00ffff';
-        } else if (colorMode === 'distance') {
-            const distance = flight.distance || 0;
-            if (distance < 500) return '#00ff88';
-            if (distance < 1500) return '#00d4ff';
-            if (distance < 5000) return '#0088ff';
-            return '#ff6b6b';
+        } else if (colorMode === 'by-year') {
+            // Color by year
+            const year = new Date(flight.date).getFullYear();
+            const currentYear = new Date().getFullYear();
+            const yearDiff = currentYear - year;
+            if (yearDiff === 0) return '#00ff88'; // Current year - bright green
+            if (yearDiff <= 1) return '#00d4ff'; // Last year - cyan
+            if (yearDiff <= 3) return '#0088ff'; // 2-3 years - blue
+            return '#8866ff'; // Older - purple
         }
         return '#00ffff'; // default cyan
     };
@@ -346,7 +340,6 @@ export default function FlightMap2D({
                     <AnimatedAirplane
                         key={`airplane-${flight.id}-${index}`}
                         flight={flight}
-                        color={getFlightColor(flight)}
                     />
                 ))}
 
