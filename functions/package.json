@@ -1,0 +1,33 @@
+{
+  "name": "skylog-functions",
+  "version": "1.0.0",
+  "description": "Firebase Cloud Functions for SkyLog - Gmail integration and server-side processing",
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "shell": "npm run build && firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix"
+  },
+  "engines": {
+    "node": "20"
+  },
+  "dependencies": {
+    "firebase-admin": "^11.11.1",
+    "firebase-functions": "^4.5.0",
+    "googleapis": "^128.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "eslint": "^9.0.0",
+    "typescript": "^5.3.0",
+    "typescript-eslint": "^8.0.0"
+  },
+  "private": true
+}
+
