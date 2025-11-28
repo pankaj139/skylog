@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plane, Map } from 'lucide-react';
+import { Plane, Map, Globe } from 'lucide-react';
 import Header from '../components/layout/Header';
 import StatCard from '../components/dashboard/StatCard';
 import EmptyState from '../components/common/EmptyState';
 import GlobeVisualization from '../components/globe/GlobeVisualization';
+import FlightMap2D from '../components/globe/FlightMap2D';
 import GlobeModeSelector, { type GlobeVisualizationMode, type GlobeColorMode } from '../components/globe/GlobeModeSelector';
 import AirlineLogo from '../components/common/AirlineLogo';
 import FlightStatusBadge from '../components/flights/FlightStatusBadge';
@@ -26,6 +27,9 @@ export default function Dashboard() {
     const { flights, setFlights } = useFlightsStore();
     const { user } = useAuthStore();
     const { initialize, checkAchievements } = useAchievementStore();
+
+    // Map view type (2D or 3D)
+    const [mapView, setMapView] = useState<'2d' | '3d'>('3d');
 
     // Globe visualization state
     const [visualizationMode, setVisualizationMode] = useState<GlobeVisualizationMode>('routes');
@@ -193,7 +197,37 @@ export default function Dashboard() {
 
                 {/* Globe Visualization */}
                 <div className="glass rounded-2xl p-8 mb-12 border border-white/10">
-                    <h3 className="text-2xl font-bold text-white mb-6">Your World Map</h3>
+                    <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-2xl font-bold text-white">Your World Map</h3>
+                        
+                        {/* 2D/3D Toggle */}
+                        {hasFlights && (
+                            <div className="flex items-center gap-2 bg-dark-surface/50 rounded-lg p-1 border border-white/10">
+                                <button
+                                    onClick={() => setMapView('3d')}
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-md transition-all ${
+                                        mapView === '3d'
+                                            ? 'bg-neon-blue text-white'
+                                            : 'text-gray-400 hover:text-white'
+                                    }`}
+                                >
+                                    <Globe size={18} />
+                                    <span className="text-sm font-medium">3D Globe</span>
+                                </button>
+                                <button
+                                    onClick={() => setMapView('2d')}
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-md transition-all ${
+                                        mapView === '2d'
+                                            ? 'bg-neon-blue text-white'
+                                            : 'text-gray-400 hover:text-white'
+                                    }`}
+                                >
+                                    <Map size={18} />
+                                    <span className="text-sm font-medium">2D Map</span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
 
                     {hasFlights ? (
                         <>
@@ -219,14 +253,25 @@ export default function Dashboard() {
                             </div>
 
                             <div className="bg-gradient-radial from-dark-surface to-dark-bg rounded-xl overflow-hidden h-[500px] lg:h-[500px] md:h-[400px] sm:h-[300px]">
-                                <GlobeVisualization
-                                    flights={flights}
-                                    visualizationMode={visualizationMode}
-                                    colorMode={colorMode}
-                                    timelapseYear={timelapseYear}
-                                    filterYear={filterYear}
-                                    filterAirline={filterAirline}
-                                />
+                                {mapView === '3d' ? (
+                                    <GlobeVisualization
+                                        flights={flights}
+                                        visualizationMode={visualizationMode}
+                                        colorMode={colorMode}
+                                        timelapseYear={timelapseYear}
+                                        filterYear={filterYear}
+                                        filterAirline={filterAirline}
+                                    />
+                                ) : (
+                                    <FlightMap2D
+                                        flights={flights}
+                                        visualizationMode={visualizationMode}
+                                        colorMode={colorMode}
+                                        timelapseYear={timelapseYear}
+                                        filterYear={filterYear}
+                                        filterAirline={filterAirline}
+                                    />
+                                )}
                             </div>
                         </>
                     ) : (

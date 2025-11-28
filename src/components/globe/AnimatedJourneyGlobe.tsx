@@ -64,9 +64,13 @@ export default function AnimatedJourneyGlobe({
     initialTheme = 'day',
 }: AnimatedJourneyGlobeProps) {
     const globeEl = useRef<any>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
     const animationRef = useRef<number | null>(null);
     const startTimeRef = useRef<number>(0);
     const pausedTimeRef = useRef<number>(0);
+
+    // Track container dimensions for proper globe sizing
+    const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
     // Normalize to array of flights
     const flights = useMemo(() => {
@@ -96,6 +100,33 @@ export default function AnimatedJourneyGlobe({
     // Calculate total animation duration (4 seconds per flight segment)
     const SEGMENT_DURATION = 4000; // 4 seconds per segment
     const totalDuration = flights.length * SEGMENT_DURATION;
+
+    // Handle container resize to keep globe properly sized
+    useEffect(() => {
+        if (!containerRef.current) return;
+
+        const updateDimensions = () => {
+            if (containerRef.current) {
+                const { width, height } = containerRef.current.getBoundingClientRect();
+                setDimensions({ width, height });
+            }
+        };
+
+        // Initial size
+        updateDimensions();
+
+        // Create ResizeObserver to watch for container size changes
+        const resizeObserver = new ResizeObserver(updateDimensions);
+        resizeObserver.observe(containerRef.current);
+
+        // Fallback: window resize (for older browsers)
+        window.addEventListener('resize', updateDimensions);
+
+        return () => {
+            resizeObserver.disconnect();
+            window.removeEventListener('resize', updateDimensions);
+        };
+    }, []);
 
     // Generate arc data for all flights with progress
     const arcsData = useMemo(() => {
@@ -367,18 +398,21 @@ export default function AnimatedJourneyGlobe({
     }
 
     return (
-        <div className="relative w-full h-full">
-            <Globe
-                ref={globeEl}
-                globeImageUrl={GLOBE_TEXTURES[theme]}
-                backgroundColor="rgba(0,0,0,0)"
-                atmosphereColor={theme === 'night' ? '#00ffff' : '#4da6ff'}
-                atmosphereAltitude={0.15}
+        <div ref={containerRef} className="relative w-full h-full">
+            {dimensions.width > 0 && dimensions.height > 0 && (
+                <Globe
+                    ref={globeEl}
+                    width={dimensions.width}
+                    height={dimensions.height}
+                    globeImageUrl={GLOBE_TEXTURES[theme]}
+                    backgroundColor="rgba(0,0,0,0)"
+                    atmosphereColor={theme === 'night' ? '#00ffff' : '#4da6ff'}
+                    atmosphereAltitude={0.15}
 
                 // Arcs
                 arcsData={arcsData}
                 arcColor="color"
-                arcStroke={2}
+                arcStroke={0.5}
                 arcAltitude={0.1}
                 arcAltitudeAutoScale={0.3}
                 arcDashLength={(d: any) => d.progress}
@@ -472,11 +506,12 @@ export default function AnimatedJourneyGlobe({
                 // Controls
                 enablePointerInteraction={true}
                 animateIn={false}
-            />
+                />
+            )}
 
             {/* Controls Overlay */}
             {showControls && (
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-full max-w-lg px-4">
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-full max-w-lg px-4 z-20">
                     <GlobeControls
                         isPlaying={isPlaying}
                         onPlayPause={handlePlayPause}
