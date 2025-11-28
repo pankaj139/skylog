@@ -53,11 +53,6 @@ export default function Header() {
         }
     }, [isMobileMenuOpen]);
 
-    // Close mobile menu when route changes
-    useEffect(() => {
-        setIsMobileMenuOpen(false);
-    }, [location.pathname]);
-
     const navigationLinks = [
         { to: '/', label: 'Dashboard', color: 'neon-blue', hoverColor: 'hover:text-neon-blue', bgColor: 'bg-neon-blue', bgColor20: 'bg-neon-blue/20', borderColor: 'border-neon-blue' },
         { to: '/trips', label: 'Trips', color: 'neon-cyan', hoverColor: 'hover:text-neon-cyan', bgColor: 'bg-neon-cyan', bgColor20: 'bg-neon-cyan/20', borderColor: 'border-neon-cyan', match: (path: string) => path === '/trips' || path.startsWith('/trip/') },
