@@ -1,11 +1,4 @@
 /**
- * Achievements Page - Phase 3
- * 
- * Displays all achievements with filtering by category and status.
- * Shows progress towards locked achievements and celebration for unlocked ones.
- */
-
-/**
  * Achievements Page
  * 
  * Displays all achievements with filtering by category and status.
@@ -13,7 +6,7 @@
  * Prevents showing notifications for achievements that were already unlocked.
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import Header from '../components/layout/Header';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import AchievementCard from '../components/achievements/AchievementCard';
@@ -32,11 +25,15 @@ export default function Achievements() {
     const { user } = useAuthStore();
     const { flights, setFlights } = useFlightsStore();
     const { progress, isLoading, loadProgress, checkAndUpdateAchievements, clearAllNotifications } = useAchievementsStore();
+    const hasClearedNotifications = useRef(false);
 
-    // Clear any old notifications when entering the achievements page
+    // Clear any old notifications when entering the achievements page (only once)
     // This prevents showing notifications for achievements that were already seen
     useEffect(() => {
-        clearAllNotifications();
+        if (!hasClearedNotifications.current) {
+            clearAllNotifications();
+            hasClearedNotifications.current = true;
+        }
     }, [clearAllNotifications]);
 
     const [filterCategory, setFilterCategory] = useState<AchievementCategory | 'all'>('all');
@@ -54,13 +51,34 @@ export default function Achievements() {
     }, [user, loadProgress, setFlights, flights.length]);
 
     // Check achievements when flights change - but only after progress is loaded
+    // Use a ref to prevent multiple simultaneous calls
+    const isCheckingRef = useRef(false);
+    const lastFlightsLengthRef = useRef(0);
+    
     useEffect(() => {
-        if (user && flights.length > 0 && progress && !isLoading) {
+        const flightsLength = flights.length;
+        const shouldCheck = user && 
+            flightsLength > 0 && 
+            progress && 
+            !isLoading && 
+            !isCheckingRef.current &&
+            flightsLength !== lastFlightsLengthRef.current; // Only check if flights count changed
+        
+        if (shouldCheck) {
             // Only check for new achievements if progress has been loaded
             // This prevents showing notifications for achievements that were already unlocked
-            checkAndUpdateAchievements(user.id, flights);
+            isCheckingRef.current = true;
+            lastFlightsLengthRef.current = flightsLength;
+            
+            checkAndUpdateAchievements(user.id, flights)
+                .catch((error) => {
+                    console.error('Error checking achievements:', error);
+                })
+                .finally(() => {
+                    isCheckingRef.current = false;
+                });
         }
-    }, [user, flights, progress, isLoading, checkAndUpdateAchievements]);
+    }, [user, flights.length, progress, isLoading]); // Use flights.length instead of flights array
 
     // Create a map of unlocked achievement IDs for quick lookup
     const unlockedMap = useMemo(() => {
@@ -126,7 +144,8 @@ export default function Achievements() {
         })).filter(item => item.achievement);
     }, [progress]);
 
-    if (isLoading) {
+    // Show loading spinner only on initial load
+    if (isLoading && !progress) {
         return (
             <div className="min-h-screen bg-dark-bg">
                 <Header />

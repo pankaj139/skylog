@@ -117,9 +117,10 @@ export const useAchievementsStore = create<AchievementsState>((set, get) => ({
 
             return [];
         } catch (error) {
-            console.error('Error checking achievements:', error);
+            const errorMessage = error instanceof Error ? error.message : String(error) || 'Unknown error';
+            console.error('Error checking achievements:', errorMessage, error);
             set({
-                error: error instanceof Error ? error.message : 'Failed to check achievements'
+                error: errorMessage
             });
             return [];
         }
