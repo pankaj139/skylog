@@ -1,4 +1,4 @@
-// Airport database - 4479 airports (medium and large)
+// Airport database - 4480 airports (medium and large)
 // Auto-generated from airports.csv
 
 import type { Airport } from '../types';

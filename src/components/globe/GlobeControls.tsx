@@ -50,6 +50,10 @@ interface GlobeControlsProps {
     cameraFollow?: boolean;
     onCameraFollowToggle?: () => void;
 
+    /** Toggle between 2D SVG marker and 3D glTF plane model. */
+    use3DPlane?: boolean;
+    on3DPlaneToggle?: () => void;
+
     theme?: 'night' | 'day' | 'satellite';
     onThemeChange?: (theme: 'night' | 'day' | 'satellite') => void;
 
@@ -80,6 +84,8 @@ const THEME_OPTIONS: { value: 'night' | 'day' | 'satellite'; label: string; icon
  * @param onCinemaModeToggle   Handler for the cinema toggle.
  * @param cameraFollow         Whether camera-follow mode is active.
  * @param onCameraFollowToggle Handler for the camera-follow toggle.
+ * @param use3DPlane           Whether the 3D glTF plane model is active.
+ * @param on3DPlaneToggle      Handler for the 2D/3D plane toggle.
  * @param theme                Current globe theme.
  * @param onThemeChange        Handler for theme changes.
  * @param showSpeedControl     Hide speed multiplier when false.
@@ -100,6 +106,8 @@ export default function GlobeControls({
     onCinemaModeToggle,
     cameraFollow = false,
     onCameraFollowToggle,
+    use3DPlane = false,
+    on3DPlaneToggle,
     theme = 'night',
     onThemeChange,
     showSpeedControl = true,
@@ -243,6 +251,24 @@ export default function GlobeControls({
 
                     {/* Secondary controls */}
                     <div className="flex items-center gap-1 sm:gap-2">
+                        {/* 3D plane toggle */}
+                        {on3DPlaneToggle && (
+                            <button
+                                type="button"
+                                onClick={on3DPlaneToggle}
+                                className={`px-2.5 sm:px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all flex items-center gap-1.5 ${
+                                    use3DPlane
+                                        ? 'bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/30'
+                                        : 'text-gray-400 hover:text-white hover:bg-white/10 border border-transparent'
+                                }`}
+                                aria-pressed={use3DPlane}
+                                title={use3DPlane ? 'Switch to 2D plane marker' : 'Switch to 3D plane model'}
+                            >
+                                <span aria-hidden>✈️</span>
+                                {!compact && <span>{use3DPlane ? '3D' : '2D'}</span>}
+                            </button>
+                        )}
+
                         {/* Camera follow */}
                         {onCameraFollowToggle && (
                             <button

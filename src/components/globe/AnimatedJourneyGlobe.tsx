@@ -28,6 +28,7 @@
 
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import Globe from 'react-globe.gl';
+import type { Object3D } from 'three';
 import type { Flight } from '../../types';
 import {
     interpolateGeodesicPoint,
@@ -35,6 +36,11 @@ import {
 } from '../../utils/globeAnimations';
 import GlobeControls from './GlobeControls';
 import useReducedMotion from '../../hooks/useReducedMotion';
+import { loadPlaneModel } from '../../utils/planeModel';
+import {
+    latLngToVector3,
+    orientationQuaternion,
+} from '../../utils/orientOnSphere';
 
 /** Globe texture URLs per theme. */
 const GLOBE_TEXTURES = {
@@ -113,6 +119,9 @@ export default function AnimatedJourneyGlobe({
 
     const [isCinemaMode, setIsCinemaMode] = useState(false);
     const [cameraFollow, setCameraFollow] = useState(false);
+    const [use3DPlane, setUse3DPlane] = useState(true);
+    const [planeModelReady, setPlaneModelReady] = useState(false);
+    const planeBaseRef = useRef<Object3D | null>(null);
     const [theme, setTheme] = useState<'night' | 'day' | 'satellite'>(initialTheme);
 
     const totalDuration = flights.length * SEGMENT_DURATION_MS;
@@ -143,6 +152,29 @@ export default function AnimatedJourneyGlobe({
             window.removeEventListener('resize', updateDimensions);
         };
     }, []);
+
+    /**
+     * Lazy-load the glTF plane model when the user turns on 3D mode for the
+     * first time. The module-level cache in `planeModel.ts` ensures we only
+     * fetch the ~2.7 MB GLB once per session, even across remounts.
+     */
+    useEffect(() => {
+        if (!use3DPlane || planeBaseRef.current) return;
+        let cancelled = false;
+        loadPlaneModel()
+            .then(base => {
+                if (cancelled) return;
+                planeBaseRef.current = base;
+                setPlaneModelReady(true);
+            })
+            .catch(err => {
+                // Fallback silently to 2D; the toggle lets the user retry.
+                console.warn('[AnimatedJourneyGlobe] plane model failed to load', err);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [use3DPlane]);
 
     /**
      * Arc data — each segment's dash length grows with its progress so the
@@ -226,6 +258,9 @@ export default function AnimatedJourneyGlobe({
 
     const planeMarkerData = useMemo(() => {
         if (!planePosition || !isPlaying) return [];
+        // In 3D mode the plane is rendered as a three.js object via the
+        // custom layer, so suppress the HTML marker to avoid double-planes.
+        if (use3DPlane && planeModelReady) return [];
         return [
             {
                 lat: planePosition.lat,
@@ -234,7 +269,7 @@ export default function AnimatedJourneyGlobe({
                 isPlane: true,
             },
         ];
-    }, [planePosition, isPlaying]);
+    }, [planePosition, isPlaying, use3DPlane, planeModelReady]);
 
     const htmlElements = useMemo(
         () => [...airportLabels, ...planeMarkerData],
@@ -254,6 +289,88 @@ export default function AnimatedJourneyGlobe({
                 Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLng);
 
             return (Math.atan2(y, x) * 180) / Math.PI;
+        },
+        []
+    );
+
+    /**
+     * Single-entry data array for the custom three.js layer — populated only
+     * when the 3D plane is active, the model is loaded, and we have a live
+     * flight position to show. Each entry carries the bearing so the update
+     * callback can orient the mesh without recomputing it.
+     */
+    const customPlaneData = useMemo(() => {
+        if (!use3DPlane || !planeModelReady || !planePosition) return [];
+        const currentFlight = flights[currentFlightIndex];
+        if (!currentFlight) return [];
+        const lookAheadProgress = Math.min(flightProgress + 0.01, 1);
+        const nextPos = interpolateGeodesicPoint(
+            currentFlight.originAirport.latitude,
+            currentFlight.originAirport.longitude,
+            currentFlight.destinationAirport.latitude,
+            currentFlight.destinationAirport.longitude,
+            lookAheadProgress
+        );
+        const bearing = calculateBearing(
+            planePosition.lat,
+            planePosition.lng,
+            nextPos.lat,
+            nextPos.lng
+        );
+        return [
+            {
+                lat: planePosition.lat,
+                lng: planePosition.lng,
+                altitude: planePosition.altitude ?? 0,
+                bearing,
+            },
+        ];
+    }, [
+        use3DPlane,
+        planeModelReady,
+        planePosition,
+        flights,
+        currentFlightIndex,
+        flightProgress,
+        calculateBearing,
+    ]);
+
+    /**
+     * Factory that returns a fresh clone of the cached plane model. Called by
+     * react-globe.gl whenever a new entry appears in `customLayerData` — for
+     * us, that's effectively once per render where the plane is visible.
+     *
+     * @returns A cloned `THREE.Object3D` ready to be added to the scene, or
+     *          an empty group if the base model hasn't finished loading yet.
+     */
+    const customThreeObject = useCallback((): Object3D => {
+        // customPlaneData is empty until planeBaseRef is populated, so this
+        // ref is guaranteed non-null by the time react-globe.gl calls us.
+        // The `!` is safe; if the guard in customPlaneData ever regresses we
+        // prefer a loud error over a silent invisible object.
+        return planeBaseRef.current!.clone(true);
+    }, []);
+
+    /**
+     * Per-frame updater: positions the plane on the globe surface at the
+     * current lat/lng/altitude and orients it along the great-circle bearing.
+     * `GLOBE_RADIUS` = 100 matches three-globe's default; altitudes are
+     * given as a fraction of radius (matching its arc/point units).
+     *
+     * @param obj Cloned plane `Object3D` returned by {@link customThreeObject}.
+     * @param d   Entry from `customPlaneData` (lat, lng, altitude, bearing).
+     */
+    const customThreeObjectUpdate = useCallback(
+        (obj: Object3D, objData: object) => {
+            const d = objData as {
+                lat: number;
+                lng: number;
+                altitude: number;
+                bearing: number;
+            };
+            const pos = latLngToVector3(d.lat, d.lng, d.altitude, 100);
+            obj.position.copy(pos);
+            orientationQuaternion(d.lat, d.lng, d.bearing, obj.quaternion);
         },
         []
     );
@@ -332,11 +449,17 @@ export default function AnimatedJourneyGlobe({
                             currentFlight.destinationAirport.latitude,
                             currentFlight.destinationAirport.longitude
                         );
+                        // Tighter "chase" altitude when 3D plane is active so
+                        // the model reads as a proper hero subject instead of
+                        // a distant dot.
+                        const chaseAltitude = use3DPlane
+                            ? 0.6
+                            : framing.altitude;
                         globeEl.current.pointOfView(
                             {
                                 lat: position.lat,
                                 lng: position.lng,
-                                altitude: isCinemaMode ? 2.2 : framing.altitude,
+                                altitude: isCinemaMode ? 2.2 : chaseAltitude,
                             },
                             200
                         );
@@ -363,7 +486,7 @@ export default function AnimatedJourneyGlobe({
         return () => {
             if (animationRef.current != null) cancelAnimationFrame(animationRef.current);
         };
-    }, [flights, totalDuration, isPlaying, speed, cameraFollow, isCinemaMode, reduceMotion]);
+    }, [flights, totalDuration, isPlaying, speed, cameraFollow, isCinemaMode, reduceMotion, use3DPlane]);
 
     const handlePlayPause = useCallback(() => {
         if (elapsedRef.current >= totalDuration) {
@@ -431,6 +554,10 @@ export default function AnimatedJourneyGlobe({
                     arcDashGap={2}
                     arcDashInitialGap={(d: any) => 1 - d.progress}
                     arcDashAnimateTime={0}
+
+                    customLayerData={customPlaneData}
+                    customThreeObject={customThreeObject}
+                    customThreeObjectUpdate={customThreeObjectUpdate}
 
                     htmlElementsData={htmlElements}
                     htmlAltitude={(d: any) =>
@@ -556,6 +683,8 @@ export default function AnimatedJourneyGlobe({
                         compact={isMobile}
                         cameraFollow={cameraFollow}
                         onCameraFollowToggle={() => setCameraFollow(v => !v)}
+                        use3DPlane={use3DPlane}
+                        on3DPlaneToggle={() => setUse3DPlane(v => !v)}
                     />
                 </div>
             )}
