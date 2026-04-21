@@ -14,7 +14,7 @@
  */
 
 import type { Flight } from '../../types';
-import { formatDistance, formatDuration, formatDate } from '../../utils/formatters';
+import { formatDistance, formatDuration, formatDate, formatInr, formatPoints } from '../../utils/formatters';
 import AirlineLogo from '../common/AirlineLogo';
 
 interface FlightCardProps {
@@ -25,6 +25,14 @@ interface FlightCardProps {
 }
 
 export default function FlightCard({ flight, onClick, onEdit, onDelete }: FlightCardProps) {
+    const bookingSummary = [
+        (flight.passengerCount ?? 1) > 1 ? `${flight.passengerCount} pax` : '',
+        flight.amountPaidInr != null && flight.amountPaidInr > 0 ? formatInr(flight.amountPaidInr) : '',
+        flight.pointsPaid != null && flight.pointsPaid > 0 ? formatPoints(flight.pointsPaid) : '',
+    ]
+        .filter(Boolean)
+        .join(' · ');
+
     const handleCardClick = (e: React.MouseEvent) => {
         // Don't trigger card click if clicking on action buttons
         if ((e.target as HTMLElement).closest('button')) {
@@ -68,6 +76,9 @@ export default function FlightCard({ flight, onClick, onEdit, onDelete }: Flight
                             <div className="text-xs text-gray-400">{flight.flightNumber}</div>
                         )}
                         <div className="text-xs text-gray-400">{formatDate(flight.date)}</div>
+                        {bookingSummary && (
+                            <div className="text-xs text-gray-500">{bookingSummary}</div>
+                        )}
                         <div className="flex items-center gap-2">
                             {flight.seatClass && (
                                 <span className="text-xs text-neon-blue font-medium uppercase tracking-wider">
@@ -76,6 +87,9 @@ export default function FlightCard({ flight, onClick, onEdit, onDelete }: Flight
                             )}
                             {flight.aircraftType && (
                                 <span className="text-xs text-gray-500">• {flight.aircraftType}</span>
+                            )}
+                            {flight.aircraftRegistration && (
+                                <span className="text-xs text-gray-500">• {flight.aircraftRegistration}</span>
                             )}
                         </div>
                     </div>
@@ -131,8 +145,10 @@ export default function FlightCard({ flight, onClick, onEdit, onDelete }: Flight
                         {flight.seatClass}
                     </span>
                 )}
-                {flight.aircraftType && (
-                    <span className="text-xs text-gray-500 ml-auto">{flight.aircraftType}</span>
+                {(flight.aircraftType || flight.aircraftRegistration) && (
+                    <span className="text-xs text-gray-500 ml-auto">
+                        {[flight.aircraftType, flight.aircraftRegistration].filter(Boolean).join(' • ')}
+                    </span>
                 )}
             </div>
         </div>

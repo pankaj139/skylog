@@ -265,6 +265,80 @@ export const achievements: Achievement[] = [
         requirement: { type: 'distance', value: 384400 },
     },
 
+    // Spending (INR & points — totals across flights where you log amounts)
+    {
+        id: 'inr-spent-10k',
+        name: 'Rupee Starter',
+        description: 'Log ₹10,000 total in cash spend across flights',
+        icon: '₹',
+        category: 'spending',
+        tier: 'bronze',
+        requirement: { type: 'spentInr', value: 10000 },
+    },
+    {
+        id: 'inr-spent-50k',
+        name: 'Rupee Traveler',
+        description: 'Log ₹50,000 total in cash spend across flights',
+        icon: '💵',
+        category: 'spending',
+        tier: 'silver',
+        requirement: { type: 'spentInr', value: 50000 },
+    },
+    {
+        id: 'inr-spent-1l',
+        name: 'Lakh Club',
+        description: 'Log ₹1,00,000 total in cash spend across flights',
+        icon: '🏦',
+        category: 'spending',
+        tier: 'gold',
+        requirement: { type: 'spentInr', value: 100000 },
+    },
+    {
+        id: 'inr-spent-5l',
+        name: 'Big Spender',
+        description: 'Log ₹5,00,000 total in cash spend across flights',
+        icon: '💎',
+        category: 'spending',
+        tier: 'platinum',
+        requirement: { type: 'spentInr', value: 500000 },
+    },
+    {
+        id: 'points-spent-5k',
+        name: 'Points Starter',
+        description: 'Log 5,000 loyalty points spent across flights',
+        icon: '🎯',
+        category: 'spending',
+        tier: 'bronze',
+        requirement: { type: 'pointsSpent', value: 5000 },
+    },
+    {
+        id: 'points-spent-25k',
+        name: 'Points Collector',
+        description: 'Log 25,000 loyalty points spent across flights',
+        icon: '🎫',
+        category: 'spending',
+        tier: 'silver',
+        requirement: { type: 'pointsSpent', value: 25000 },
+    },
+    {
+        id: 'points-spent-100k',
+        name: 'Points Power User',
+        description: 'Log 100,000 loyalty points spent across flights',
+        icon: '⚡',
+        category: 'spending',
+        tier: 'gold',
+        requirement: { type: 'pointsSpent', value: 100000 },
+    },
+    {
+        id: 'points-spent-500k',
+        name: 'Points Legend',
+        description: 'Log 500,000 loyalty points spent across flights',
+        icon: '👑',
+        category: 'spending',
+        tier: 'platinum',
+        requirement: { type: 'pointsSpent', value: 500000 },
+    },
+
     // Special achievements
     {
         id: 'early-bird',
@@ -320,6 +394,24 @@ export const achievements: Achievement[] = [
         tier: 'silver',
         requirement: { type: 'custom', value: 1 },
     },
+    {
+        id: 'flying-together',
+        name: 'Flying Together',
+        description: 'Log a flight with 2 or more seats (travel with someone)',
+        icon: '👨‍👩‍👧',
+        category: 'special',
+        tier: 'bronze',
+        requirement: { type: 'custom', value: 1 },
+    },
+    {
+        id: 'familiar-airframe',
+        name: 'Familiar Airframe',
+        description: 'Log the same aircraft registration (tail number) on more than one flight',
+        icon: '🔁',
+        category: 'special',
+        tier: 'silver',
+        requirement: { type: 'custom', value: 1 },
+    },
 ];
 
 // Category metadata for display
@@ -328,6 +420,7 @@ export const achievementCategories = {
     destinations: { name: 'Destinations', icon: '🌍', color: 'green' },
     aircraft: { name: 'Aircraft', icon: '🛩️', color: 'purple' },
     distance: { name: 'Distance', icon: '📏', color: 'orange' },
+    spending: { name: 'Spending & Points', icon: '💳', color: 'teal' },
     special: { name: 'Special', icon: '⭐', color: 'yellow' },
 };
 

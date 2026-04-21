@@ -27,6 +27,11 @@ export async function createFlight(userId: string, flightData: {
     seatNumber?: string;
     seatClass?: 'Economy' | 'Premium Economy' | 'Business' | 'First';
     pnr?: string; // Passenger Name Record / Booking reference
+    /** Aircraft tail / registration number */
+    aircraftRegistration?: string;
+    passengerCount?: number;
+    amountPaidInr?: number;
+    pointsPaid?: number;
     notes?: string;
     photos?: string[]; // Phase 2: Photo URLs
     tripId?: string; // Phase 2: Optional trip assignment
@@ -53,6 +58,16 @@ export async function createFlight(userId: string, flightData: {
             seatNumber: flightData.seatNumber || null,
             seatClass: flightData.seatClass || null,
             pnr: flightData.pnr || null, // Passenger Name Record
+            aircraftRegistration: flightData.aircraftRegistration?.trim() || null,
+            passengerCount: typeof flightData.passengerCount === 'number' && flightData.passengerCount >= 1
+                ? Math.min(999, Math.floor(flightData.passengerCount))
+                : 1,
+            amountPaidInr: typeof flightData.amountPaidInr === 'number' && !Number.isNaN(flightData.amountPaidInr)
+                ? Math.max(0, Math.round(flightData.amountPaidInr))
+                : null,
+            pointsPaid: typeof flightData.pointsPaid === 'number' && !Number.isNaN(flightData.pointsPaid)
+                ? Math.max(0, Math.round(flightData.pointsPaid))
+                : null,
             notes: flightData.notes || null,
             photos: flightData.photos || [], // Phase 2
             tripId: flightData.tripId || null, // Phase 2

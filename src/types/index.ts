@@ -52,9 +52,17 @@ export interface Flight {
 
     // Optional details
     aircraftType?: string;
+    /** Aircraft tail / registration (e.g. N123AB, G-ABCD) */
+    aircraftRegistration?: string;
     seatNumber?: string;
     seatClass?: 'Economy' | 'Premium Economy' | 'Business' | 'First';
     pnr?: string; // Passenger Name Record / Booking reference
+    /** Seats / passengers on this booking (you + friends/family), default 1 */
+    passengerCount?: number;
+    /** Total cash paid for this booking in INR (Indian Rupees), optional */
+    amountPaidInr?: number;
+    /** Loyalty points redeemed for this booking, optional */
+    pointsPaid?: number;
     notes?: string;
 
     // Phase 2: Photos & Trip association
@@ -246,10 +254,10 @@ export interface CSVImportResult {
 }
 
 // Phase 3: Gamification and Achievement types
-export type AchievementCategory = 'flights' | 'destinations' | 'aircraft' | 'distance' | 'special';
+export type AchievementCategory = 'flights' | 'destinations' | 'aircraft' | 'distance' | 'spending' | 'special';
 
 export interface AchievementRequirement {
-    type: 'flights' | 'countries' | 'continents' | 'airports' | 'airlines' | 'aircraft' | 'distance' | 'custom';
+    type: 'flights' | 'countries' | 'continents' | 'airports' | 'airlines' | 'aircraft' | 'distance' | 'spentInr' | 'pointsSpent' | 'custom';
     value: number;
     customCheck?: (flights: Flight[]) => boolean;
 }
@@ -280,6 +288,10 @@ export interface UserProgress {
         airlinesFlown: number;
         aircraftTypesFlown: number;
         totalDistance: number;
+        /** Sum of amountPaidInr across flights (where logged) */
+        totalSpentInr: number;
+        /** Sum of pointsPaid across flights (where logged) */
+        totalPointsSpent: number;
     };
     updatedAt: Date;
 }

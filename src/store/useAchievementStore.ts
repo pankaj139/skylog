@@ -38,6 +38,8 @@ export const useAchievementStore = create<AchievementState>()(
                                 airlinesFlown: 0,
                                 aircraftTypesFlown: 0,
                                 totalDistance: 0,
+                                totalSpentInr: 0,
+                                totalPointsSpent: 0,
                             },
                             updatedAt: new Date(),
                         }

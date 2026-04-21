@@ -6,7 +6,11 @@ import AirportSearch from './AirportSearch';
 import AirlineSearch from './AirlineSearch';
 import AircraftSearch from './AircraftSearch';
 import { useFlightsStore } from '../../store/flightsStore';
+import { useAchievementsStore } from '../../store/achievementsStore';
+import { useAchievementStore } from '../../store/useAchievementStore';
 import { updateFlight } from '../../services/flightService';
+import { ensureUserProgress } from '../../services/achievementService';
+import { parseOptionalMoneyOrPoints, parsePassengerCount } from '../../utils/flightFormParsers';
 import type { Airport, Flight } from '../../types';
 
 interface EditFlightModalProps {
@@ -17,6 +21,9 @@ interface EditFlightModalProps {
 
 export default function EditFlightModal({ isOpen, onClose, flight }: EditFlightModalProps) {
     const { updateFlightInStore } = useFlightsStore();
+    const loadProgress = useAchievementsStore(s => s.loadProgress);
+    const checkAndUpdateAchievements = useAchievementsStore(s => s.checkAndUpdateAchievements);
+    const initializeAchievementStore = useAchievementStore(s => s.initialize);
 
     const [formData, setFormData] = useState({
         originAirport: null as Airport | null,
@@ -25,8 +32,12 @@ export default function EditFlightModal({ isOpen, onClose, flight }: EditFlightM
         flightNumber: '',
         date: '',
         aircraftType: '',
+        aircraftRegistration: '',
         seatNumber: '',
         seatClass: '' as '' | 'Economy' | 'Premium Economy' | 'Business' | 'First',
+        passengerCount: '1',
+        amountPaidInr: '',
+        pointsPaid: '',
         pnr: '',
         notes: '',
     });
@@ -46,8 +57,12 @@ export default function EditFlightModal({ isOpen, onClose, flight }: EditFlightM
                     ? flight.date.toISOString().split('T')[0]
                     : new Date(flight.date).toISOString().split('T')[0],
                 aircraftType: flight.aircraftType || '',
+                aircraftRegistration: flight.aircraftRegistration || '',
                 seatNumber: flight.seatNumber || '',
                 seatClass: flight.seatClass || '',
+                passengerCount: String(flight.passengerCount ?? 1),
+                amountPaidInr: flight.amountPaidInr != null ? String(flight.amountPaidInr) : '',
+                pointsPaid: flight.pointsPaid != null ? String(flight.pointsPaid) : '',
                 pnr: flight.pnr || '',
                 notes: flight.notes || '',
             });
@@ -74,6 +89,12 @@ export default function EditFlightModal({ isOpen, onClose, flight }: EditFlightM
             newErrors.date = 'Date is required';
         }
 
+        const inrParsed = parseOptionalMoneyOrPoints(formData.amountPaidInr);
+        if (inrParsed.invalid) newErrors.amountPaidInr = 'Enter a valid INR amount';
+
+        const ptsParsed = parseOptionalMoneyOrPoints(formData.pointsPaid);
+        if (ptsParsed.invalid) newErrors.pointsPaid = 'Enter a valid points amount';
+
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -85,6 +106,14 @@ export default function EditFlightModal({ isOpen, onClose, flight }: EditFlightM
 
         setIsSubmitting(true);
 
+        const aircraftRegistration = formData.aircraftRegistration.trim()
+            ? formData.aircraftRegistration.trim().toUpperCase().replace(/\s+/g, '')
+            : undefined;
+
+        const passengerCount = parsePassengerCount(formData.passengerCount);
+        const inrResult = parseOptionalMoneyOrPoints(formData.amountPaidInr);
+        const ptsResult = parseOptionalMoneyOrPoints(formData.pointsPaid);
+
         try {
             await updateFlight(flight.id, {
                 originAirport: formData.originAirport!,
@@ -93,6 +122,10 @@ export default function EditFlightModal({ isOpen, onClose, flight }: EditFlightM
                 flightNumber: formData.flightNumber || undefined,
                 date: new Date(formData.date),
                 aircraftType: formData.aircraftType || undefined,
+                aircraftRegistration,
+                passengerCount,
+                amountPaidInr: inrResult.value,
+                pointsPaid: ptsResult.value,
                 seatNumber: formData.seatNumber || undefined,
                 seatClass: formData.seatClass || undefined,
                 pnr: formData.pnr || undefined,
@@ -108,12 +141,22 @@ export default function EditFlightModal({ isOpen, onClose, flight }: EditFlightM
                 flightNumber: formData.flightNumber || undefined,
                 date: new Date(formData.date),
                 aircraftType: formData.aircraftType || undefined,
+                aircraftRegistration,
+                passengerCount,
+                amountPaidInr: inrResult.value,
+                pointsPaid: ptsResult.value,
                 seatNumber: formData.seatNumber || undefined,
                 seatClass: formData.seatClass || undefined,
                 pnr: formData.pnr || undefined,
                 notes: formData.notes || undefined,
                 updatedAt: new Date(),
             });
+
+            const allFlights = useFlightsStore.getState().flights;
+            await ensureUserProgress(flight.userId);
+            await loadProgress(flight.userId);
+            await checkAndUpdateAchievements(flight.userId, allFlights);
+            await initializeAchievementStore(flight.userId);
 
             onClose();
         } catch (error) {
@@ -192,6 +235,15 @@ export default function EditFlightModal({ isOpen, onClose, flight }: EditFlightM
                     />
                 </div>
 
+                <Input
+                    label="Aircraft registration (tail number)"
+                    value={formData.aircraftRegistration}
+                    onChange={(e) =>
+                        setFormData({ ...formData, aircraftRegistration: e.target.value.toUpperCase() })
+                    }
+                    placeholder="e.g. N123AB, G-EUUU"
+                />
+
                 {/* Seat Number & Class */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <Input
@@ -226,6 +278,36 @@ export default function EditFlightModal({ isOpen, onClose, flight }: EditFlightM
                     onChange={(e) => setFormData({ ...formData, pnr: e.target.value.toUpperCase() })}
                     placeholder="e.g. ABC123"
                 />
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    <Input
+                        type="number"
+                        min={1}
+                        max={999}
+                        label="Passengers / seats booked"
+                        value={formData.passengerCount}
+                        onChange={(e) => setFormData({ ...formData, passengerCount: e.target.value })}
+                        placeholder="1"
+                    />
+                    <Input
+                        type="text"
+                        inputMode="decimal"
+                        label="Amount paid (INR)"
+                        value={formData.amountPaidInr}
+                        onChange={(e) => setFormData({ ...formData, amountPaidInr: e.target.value })}
+                        placeholder="e.g. 15000"
+                        error={errors.amountPaidInr}
+                    />
+                    <Input
+                        type="text"
+                        inputMode="numeric"
+                        label="Points redeemed"
+                        value={formData.pointsPaid}
+                        onChange={(e) => setFormData({ ...formData, pointsPaid: e.target.value })}
+                        placeholder="e.g. 12000"
+                        error={errors.pointsPaid}
+                    />
+                </div>
 
                 {/* Notes */}
                 <div>

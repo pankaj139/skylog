@@ -59,6 +59,36 @@ function getContinent(country: string): string {
 }
 
 /**
+ * Normalizes an aircraft registration for comparison (trim, uppercase, remove spaces).
+ *
+ * @param registration - Raw tail number from user input or stored flight
+ * @returns Normalized string or null if empty
+ */
+function normalizeAircraftRegistration(registration?: string): string | null {
+    const r = registration?.trim();
+    if (!r) return null;
+    return r.toUpperCase().replace(/\s+/g, '');
+}
+
+/**
+ * Returns true if at least two logged flights share the same non-empty aircraft registration.
+ *
+ * @param flights - User's flight list
+ * @returns Whether the "same tail again" condition is met
+ */
+function hasRepeatAircraftRegistration(flights: Flight[]): boolean {
+    const counts = new Map<string, number>();
+    for (const f of flights) {
+        const key = normalizeAircraftRegistration(f.aircraftRegistration);
+        if (!key) continue;
+        const next = (counts.get(key) || 0) + 1;
+        counts.set(key, next);
+        if (next >= 2) return true;
+    }
+    return false;
+}
+
+/**
  * Calculates user statistics from their flights
  */
 export function calculateUserStats(flights: Flight[]): UserProgress['stats'] {
@@ -68,6 +98,8 @@ export function calculateUserStats(flights: Flight[]): UserProgress['stats'] {
     const airlines = new Set<string>();
     const aircraftTypes = new Set<string>();
     let totalDistance = 0;
+    let totalSpentInr = 0;
+    let totalPointsSpent = 0;
 
     flights.forEach(flight => {
         // Countries
@@ -92,6 +124,13 @@ export function calculateUserStats(flights: Flight[]): UserProgress['stats'] {
 
         // Distance
         totalDistance += flight.distance || 0;
+
+        if (typeof flight.amountPaidInr === 'number' && !Number.isNaN(flight.amountPaidInr)) {
+            totalSpentInr += Math.max(0, flight.amountPaidInr);
+        }
+        if (typeof flight.pointsPaid === 'number' && !Number.isNaN(flight.pointsPaid)) {
+            totalPointsSpent += Math.max(0, flight.pointsPaid);
+        }
     });
 
     // Remove 'Unknown' continent if present
@@ -105,6 +144,8 @@ export function calculateUserStats(flights: Flight[]): UserProgress['stats'] {
         airlinesFlown: airlines.size,
         aircraftTypesFlown: aircraftTypes.size,
         totalDistance: Math.round(totalDistance),
+        totalSpentInr: Math.round(totalSpentInr),
+        totalPointsSpent: Math.round(totalPointsSpent),
     };
 }
 
@@ -133,6 +174,10 @@ export function isAchievementUnlocked(
             return stats.aircraftTypesFlown >= requirement.value;
         case 'distance':
             return stats.totalDistance >= requirement.value;
+        case 'spentInr':
+            return (stats.totalSpentInr ?? 0) >= requirement.value;
+        case 'pointsSpent':
+            return (stats.totalPointsSpent ?? 0) >= requirement.value;
         case 'custom':
             return checkCustomAchievement(achievement.id, flights);
         default:
@@ -157,6 +202,10 @@ function checkCustomAchievement(achievementId: string, flights: Flight[]): boole
                 const destContinent = getContinent(f.destinationAirport.country);
                 return originContinent !== destContinent && originContinent !== 'Unknown' && destContinent !== 'Unknown';
             });
+        case 'familiar-airframe':
+            return hasRepeatAircraftRegistration(flights);
+        case 'flying-together':
+            return flights.some(f => (f.passengerCount ?? 1) >= 2);
         default:
             return false;
     }
@@ -205,6 +254,30 @@ export function getNewlyUnlockedAchievements(
 /**
  * Gets user progress from Firestore
  */
+const EMPTY_STATS: UserProgress['stats'] = {
+    totalFlights: 0,
+    countriesVisited: 0,
+    continentsVisited: 0,
+    airportsVisited: 0,
+    airlinesFlown: 0,
+    aircraftTypesFlown: 0,
+    totalDistance: 0,
+    totalSpentInr: 0,
+    totalPointsSpent: 0,
+};
+
+/**
+ * Ensures a Firestore userProgress document exists for achievement tracking.
+ *
+ * @param userId - The signed-in user's ID
+ * @returns Existing or newly created progress record
+ */
+export async function ensureUserProgress(userId: string): Promise<UserProgress> {
+    const existing = await getUserProgress(userId);
+    if (existing) return existing;
+    return updateUserProgress(userId, EMPTY_STATS, []);
+}
+
 export async function getUserProgress(userId: string): Promise<UserProgress | null> {
     try {
         const docRef = doc(db, 'userProgress', userId);
@@ -221,7 +294,7 @@ export async function getUserProgress(userId: string): Promise<UserProgress | nu
                 achievementId: a.achievementId,
                 unlockedAt: a.unlockedAt.toDate(),
             })),
-            stats: data.stats,
+            stats: { ...EMPTY_STATS, ...(data.stats || {}) },
             updatedAt: data.updatedAt.toDate(),
         };
     } catch (error) {
@@ -306,6 +379,12 @@ export function getAchievementProgress(
         case 'distance':
             current = stats.totalDistance;
             break;
+        case 'spentInr':
+            current = stats.totalSpentInr ?? 0;
+            break;
+        case 'pointsSpent':
+            current = stats.totalPointsSpent ?? 0;
+            break;
         default:
             return 0;
     }
@@ -319,6 +398,7 @@ export default {
     getUnlockedAchievements,
     getNewlyUnlockedAchievements,
     getUserProgress,
+    ensureUserProgress,
     updateUserProgress,
     getAchievementProgress,
 };

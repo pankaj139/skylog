@@ -15,7 +15,7 @@ import LoadingSpinner from '../components/common/LoadingSpinner';
 import AirlineLogo from '../components/common/AirlineLogo';
 import PhotoGallery from '../components/photos/PhotoGallery';
 import ExportButton from '../components/export/ExportButton';
-import { formatDistance, formatDuration, formatDate } from '../utils/formatters';
+import { formatDistance, formatDuration, formatDate, formatInr, formatPoints } from '../utils/formatters';
 import type { Flight } from '../types';
 
 export default function JourneyDetail() {
@@ -187,12 +187,48 @@ export default function JourneyDetail() {
                                 </div>
                             )}
 
+                            {flight.aircraftRegistration && (
+                                <div className="col-span-2">
+                                    <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">
+                                        Registration
+                                    </div>
+                                    <div className="text-white font-mono font-medium text-sm">{flight.aircraftRegistration}</div>
+                                </div>
+                            )}
+
                             {flight.seatNumber && (
                                 <div>
                                     <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">
                                         Seat
                                     </div>
                                     <div className="text-white font-medium text-sm">{flight.seatNumber}</div>
+                                </div>
+                            )}
+
+                            {(flight.passengerCount ?? 1) > 1 && (
+                                <div>
+                                    <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">
+                                        Passengers
+                                    </div>
+                                    <div className="text-white font-medium text-sm">{flight.passengerCount}</div>
+                                </div>
+                            )}
+
+                            {flight.amountPaidInr != null && flight.amountPaidInr > 0 && (
+                                <div>
+                                    <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">
+                                        Paid (INR)
+                                    </div>
+                                    <div className="text-white font-medium text-sm">{formatInr(flight.amountPaidInr)}</div>
+                                </div>
+                            )}
+
+                            {flight.pointsPaid != null && flight.pointsPaid > 0 && (
+                                <div>
+                                    <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">
+                                        Points redeemed
+                                    </div>
+                                    <div className="text-white font-medium text-sm">{formatPoints(flight.pointsPaid)}</div>
                                 </div>
                             )}
 

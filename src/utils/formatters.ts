@@ -68,3 +68,17 @@ export function formatAirportDisplay(
 ): string {
     return `${iata} - ${name}, ${city}`;
 }
+
+/**
+ * Formats an amount in Indian Rupees for display.
+ */
+export function formatInr(amount: number): string {
+    return `₹${amount.toLocaleString('en-IN')}`;
+}
+
+/**
+ * Formats loyalty points for display.
+ */
+export function formatPoints(points: number): string {
+    return `${points.toLocaleString('en-IN')} pts`;
+}
