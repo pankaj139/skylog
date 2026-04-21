@@ -1,21 +1,29 @@
 /**
- * AnimatedJourneyGlobe Component - Phase 2: Enhanced Globe Animations
- * 
- * An animated 3D globe visualization showing flight paths with:
- * - Single or multi-segment flight path animation
- * - Moving plane icon along the geodesic path
- * - Camera following mode
- * - Cinema mode with auto-rotation
- * - Speed controls (0.5x, 1x, 2x)
- * - Theme selection (night, day, satellite)
- * - Play/Pause and Replay controls
- * 
+ * AnimatedJourneyGlobe Component
+ *
+ * Animated 3D globe used on the Trip detail page (and single-flight journey
+ * pages). Plays a flight — or a sequence of flights in a trip — along a
+ * geodesic arc while a plane marker traces the route.
+ *
+ * Capabilities:
+ *   - Single flight or multi-segment trip animation
+ *   - Animated geodesic path with a plane marker that rotates on its bearing
+ *   - Play / pause / replay / scrub controls
+ *   - Speed control (0.5x, 1x, 2x)
+ *   - Three textures: night, day, satellite
+ *   - Optional camera-follow that re-frames on each segment
+ *   - Respects `prefers-reduced-motion` (renders final state, no animation)
+ *   - Mobile-friendly compact controls
+ *
  * Usage:
  *   // Single flight
  *   <AnimatedJourneyGlobe flight={flight} />
- *   
- *   // Multiple flights (trip)
- *   <AnimatedJourneyGlobe flights={tripFlights} />
+ *
+ *   // Multi-segment trip
+ *   <AnimatedJourneyGlobe flights={tripFlights} showControls />
+ *
+ * @returns A container div that renders a <Globe /> canvas plus a controls
+ *          overlay. Parent decides width/height via CSS.
  */
 
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
@@ -26,35 +34,42 @@ import {
     calculateOptimalCameraPosition,
 } from '../../utils/globeAnimations';
 import GlobeControls from './GlobeControls';
+import useReducedMotion from '../../hooks/useReducedMotion';
 
-// Globe texture URLs for different themes
+/** Globe texture URLs per theme. */
 const GLOBE_TEXTURES = {
     night: '//unpkg.com/three-globe/example/img/earth-night.jpg',
     day: '//unpkg.com/three-globe/example/img/earth-blue-marble.jpg',
     satellite: '//unpkg.com/three-globe/example/img/earth-topology.png',
 };
 
+const SEGMENT_DURATION_MS = 4000;
+
+/**
+ * Props for {@link AnimatedJourneyGlobe}.
+ */
 interface AnimatedJourneyGlobeProps {
-    // Single flight (backward compatible)
+    /** Single flight (kept for backward compatibility). */
     flight?: Flight;
-    // Multiple flights for multi-segment trips
+    /** Multiple flights (trip segments); rendered in chronological order. */
     flights?: Flight[];
-    // Show controls
+    /** Show the on-screen controls overlay (default true). */
     showControls?: boolean;
-    // Auto-play on mount
+    /** Auto-play on mount (default true). */
     autoPlay?: boolean;
-    // Initial theme
+    /** Initial globe texture (default 'day'). */
     initialTheme?: 'night' | 'day' | 'satellite';
 }
 
 /**
- * AnimatedJourneyGlobe renders an interactive 3D globe with animated flight paths
- * 
- * @param flight - Single flight to animate (for backward compatibility)
- * @param flights - Array of flights for multi-segment animation
- * @param showControls - Whether to show animation controls (default: true)
- * @param autoPlay - Whether to start animation automatically (default: true)
- * @param initialTheme - Initial globe texture theme (default: 'night')
+ * AnimatedJourneyGlobe
+ *
+ * @param flight       Single flight to animate.
+ * @param flights      Multiple flights for a trip.
+ * @param showControls Show play/pause + theme + speed overlay (default true).
+ * @param autoPlay     Start playing on mount (default true).
+ * @param initialTheme Starting globe texture theme.
+ * @returns A div wrapping the animated Globe + controls.
  */
 export default function AnimatedJourneyGlobe({
     flight,
@@ -66,60 +81,61 @@ export default function AnimatedJourneyGlobe({
     const globeEl = useRef<any>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const animationRef = useRef<number | null>(null);
-    const startTimeRef = useRef<number>(0);
-    const pausedTimeRef = useRef<number>(0);
+    const lastTickRef = useRef<number>(0);
+    const elapsedRef = useRef<number>(0);
 
-    // Track container dimensions for proper globe sizing
+    const reduceMotion = useReducedMotion();
+
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
-    // Normalize to array of flights
+    // Normalize to sorted array of flights
     const flights = useMemo(() => {
         if (propFlights && propFlights.length > 0) {
-            return [...propFlights].sort((a, b) =>
-                new Date(a.date).getTime() - new Date(b.date).getTime()
+            return [...propFlights].sort(
+                (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
             );
         }
-        if (flight) {
-            return [flight];
-        }
+        if (flight) return [flight];
         return [];
     }, [flight, propFlights]);
 
     // Animation state
-    const [isPlaying, setIsPlaying] = useState(autoPlay);
+    const [isPlaying, setIsPlaying] = useState(autoPlay && !reduceMotion);
     const [speed, setSpeed] = useState(1);
-    const [progress, setProgress] = useState(0);
-    const [currentFlightIndex, setCurrentFlightIndex] = useState(0);
-    const [flightProgress, setFlightProgress] = useState(0);
-    const [planePosition, setPlanePosition] = useState<{ lat: number; lng: number; altitude?: number } | null>(null);
+    const [progress, setProgress] = useState(reduceMotion ? 1 : 0);
+    const [currentFlightIndex, setCurrentFlightIndex] = useState(
+        reduceMotion ? Math.max(0, flights.length - 1) : 0
+    );
+    const [flightProgress, setFlightProgress] = useState(reduceMotion ? 1 : 0);
+    const [planePosition, setPlanePosition] = useState<
+        { lat: number; lng: number; altitude?: number } | null
+    >(null);
 
-    // Display options
     const [isCinemaMode, setIsCinemaMode] = useState(false);
+    const [cameraFollow, setCameraFollow] = useState(false);
     const [theme, setTheme] = useState<'night' | 'day' | 'satellite'>(initialTheme);
 
-    // Calculate total animation duration (4 seconds per flight segment)
-    const SEGMENT_DURATION = 4000; // 4 seconds per segment
-    const totalDuration = flights.length * SEGMENT_DURATION;
+    const totalDuration = flights.length * SEGMENT_DURATION_MS;
+    const isMobile = dimensions.width > 0 && dimensions.width < 640;
 
-    // Handle container resize to keep globe properly sized
+    /**
+     * Track container dimensions using ResizeObserver so the canvas refits
+     * when layout changes (sidebar, orientation, zoom).
+     */
     useEffect(() => {
-        if (!containerRef.current) return;
+        const node = containerRef.current;
+        if (!node) return;
 
         const updateDimensions = () => {
-            if (containerRef.current) {
-                const { width, height } = containerRef.current.getBoundingClientRect();
-                setDimensions({ width, height });
-            }
+            if (!containerRef.current) return;
+            const { width, height } = containerRef.current.getBoundingClientRect();
+            setDimensions({ width, height });
         };
 
-        // Initial size
         updateDimensions();
 
-        // Create ResizeObserver to watch for container size changes
         const resizeObserver = new ResizeObserver(updateDimensions);
-        resizeObserver.observe(containerRef.current);
-
-        // Fallback: window resize (for older browsers)
+        resizeObserver.observe(node);
         window.addEventListener('resize', updateDimensions);
 
         return () => {
@@ -128,40 +144,42 @@ export default function AnimatedJourneyGlobe({
         };
     }, []);
 
-    // Generate arc data for all flights with progress
+    /**
+     * Arc data — each segment's dash length grows with its progress so the
+     * currently animating arc is drawn progressively.
+     */
     const arcsData = useMemo(() => {
         if (flights.length === 0) return [];
 
         return flights.map((f, index) => {
-            // Calculate arc visibility based on animation progress
             let arcProgress = 0;
-
-            if (index < currentFlightIndex) {
-                arcProgress = 1; // Fully drawn for past segments
-            } else if (index === currentFlightIndex) {
-                arcProgress = flightProgress; // Currently animating
-            }
-            // Future segments stay at 0
+            if (index < currentFlightIndex) arcProgress = 1;
+            else if (index === currentFlightIndex) arcProgress = flightProgress;
 
             return {
                 startLat: f.originAirport.latitude,
                 startLng: f.originAirport.longitude,
                 endLat: f.destinationAirport.latitude,
                 endLng: f.destinationAirport.longitude,
-                color: index === currentFlightIndex
-                    ? ['rgba(0, 255, 255, 0.9)', 'rgba(0, 150, 255, 0.9)']
-                    : ['rgba(0, 255, 255, 0.4)', 'rgba(0, 150, 255, 0.4)'],
+                color:
+                    index === currentFlightIndex
+                        ? ['rgba(0, 255, 255, 0.9)', 'rgba(0, 150, 255, 0.9)']
+                        : ['rgba(0, 255, 255, 0.4)', 'rgba(0, 150, 255, 0.4)'],
                 progress: arcProgress,
                 index,
             };
         });
     }, [flights, currentFlightIndex, flightProgress]);
 
-    // Airport labels
+    /**
+     * Unique airport markers. Only keeps the first occurrence, but its
+     * `isActive` flag is recomputed each render from the current segment so
+     * airports light up in order.
+     */
     const airportLabels = useMemo(() => {
         if (flights.length === 0) return [];
 
-        const airports: Array<{
+        type AirportLabel = {
             lat: number;
             lng: number;
             text: string;
@@ -169,15 +187,14 @@ export default function AnimatedJourneyGlobe({
             isOrigin: boolean;
             isDestination: boolean;
             isActive: boolean;
-        }> = [];
+            segmentIndex: number;
+        };
 
-        const addedAirports = new Set<string>();
+        const map = new Map<string, AirportLabel>();
 
         flights.forEach((f, index) => {
-            // Origin
-            if (!addedAirports.has(f.originAirport.iata)) {
-                addedAirports.add(f.originAirport.iata);
-                airports.push({
+            if (!map.has(f.originAirport.iata)) {
+                map.set(f.originAirport.iata, {
                     lat: f.originAirport.latitude,
                     lng: f.originAirport.longitude,
                     text: f.originAirport.iata,
@@ -185,59 +202,69 @@ export default function AnimatedJourneyGlobe({
                     isOrigin: index === 0,
                     isDestination: false,
                     isActive: index <= currentFlightIndex,
+                    segmentIndex: index,
                 });
             }
-            // Destination
-            if (!addedAirports.has(f.destinationAirport.iata)) {
-                addedAirports.add(f.destinationAirport.iata);
-                airports.push({
+            if (!map.has(f.destinationAirport.iata)) {
+                map.set(f.destinationAirport.iata, {
                     lat: f.destinationAirport.latitude,
                     lng: f.destinationAirport.longitude,
                     text: f.destinationAirport.iata,
                     city: f.destinationAirport.city,
                     isOrigin: false,
                     isDestination: index === flights.length - 1,
-                    isActive: index < currentFlightIndex || (index === currentFlightIndex && flightProgress > 0.9),
+                    isActive:
+                        index < currentFlightIndex ||
+                        (index === currentFlightIndex && flightProgress > 0.9),
+                    segmentIndex: index,
                 });
             }
         });
 
-        return airports;
+        return Array.from(map.values());
     }, [flights, currentFlightIndex, flightProgress]);
 
-    // Plane marker
     const planeMarkerData = useMemo(() => {
         if (!planePosition || !isPlaying) return [];
-        return [{
-            lat: planePosition.lat,
-            lng: planePosition.lng,
-            altitude: planePosition.altitude || 0,
-            isPlane: true,
-        }];
+        return [
+            {
+                lat: planePosition.lat,
+                lng: planePosition.lng,
+                altitude: planePosition.altitude || 0,
+                isPlane: true,
+            },
+        ];
     }, [planePosition, isPlaying]);
 
-    // Combined HTML elements
-    const htmlElements = useMemo(() => {
-        return [...airportLabels, ...planeMarkerData];
-    }, [airportLabels, planeMarkerData]);
+    const htmlElements = useMemo(
+        () => [...airportLabels, ...planeMarkerData],
+        [airportLabels, planeMarkerData]
+    );
 
-    // Calculate bearing for plane rotation
-    const calculateBearing = useCallback((lat1: number, lng1: number, lat2: number, lng2: number) => {
-        const dLng = (lng2 - lng1) * Math.PI / 180;
-        const lat1Rad = lat1 * Math.PI / 180;
-        const lat2Rad = lat2 * Math.PI / 180;
+    /** Bearing (in degrees) from point A to point B — used to orient the plane. */
+    const calculateBearing = useCallback(
+        (lat1: number, lng1: number, lat2: number, lng2: number) => {
+            const dLng = ((lng2 - lng1) * Math.PI) / 180;
+            const lat1Rad = (lat1 * Math.PI) / 180;
+            const lat2Rad = (lat2 * Math.PI) / 180;
 
-        const y = Math.sin(dLng) * Math.cos(lat2Rad);
-        const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) - Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLng);
+            const y = Math.sin(dLng) * Math.cos(lat2Rad);
+            const x =
+                Math.cos(lat1Rad) * Math.sin(lat2Rad) -
+                Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLng);
 
-        return Math.atan2(y, x) * 180 / Math.PI;
-    }, []);
+            return (Math.atan2(y, x) * 180) / Math.PI;
+        },
+        []
+    );
 
-    // Animation logic
+    /**
+     * Set up the initial camera whenever the flight list changes. We use a
+     * dedicated effect so changes to `isPlaying` / `speed` don't reset the
+     * camera or the elapsed time.
+     */
     useEffect(() => {
         if (!globeEl.current || flights.length === 0) return;
-
-        // Set initial camera position
         const firstFlight = flights[0];
         const cameraPos = calculateOptimalCameraPosition(
             firstFlight.originAirport.latitude,
@@ -245,149 +272,133 @@ export default function AnimatedJourneyGlobe({
             firstFlight.destinationAirport.latitude,
             firstFlight.destinationAirport.longitude
         );
-
         globeEl.current.pointOfView(
             { lat: cameraPos.lat, lng: cameraPos.lng, altitude: cameraPos.altitude },
-            0
+            reduceMotion ? 0 : 500
         );
+    }, [flights, reduceMotion]);
 
-        if (!autoPlay) return;
+    /**
+     * Main animation loop. Kicked off once and kept alive until unmount.
+     * Play/pause is handled by checking `isPlaying` inside the tick, so we no
+     * longer re-run this effect (and lose timing) when the user pauses.
+     */
+    useEffect(() => {
+        if (flights.length === 0 || reduceMotion) return;
 
-        // Start animation after delay
-        const startDelay = setTimeout(() => {
-            startTimeRef.current = performance.now();
+        lastTickRef.current = performance.now();
 
-            const animate = (currentTime: number) => {
-                if (!isPlaying) {
-                    pausedTimeRef.current = currentTime - startTimeRef.current;
-                    return;
-                }
+        const tick = (now: number) => {
+            const dt = now - lastTickRef.current;
+            lastTickRef.current = now;
 
-                const elapsed = (currentTime - startTimeRef.current) * speed;
-                const overallProgress = Math.min(elapsed / totalDuration, 1);
+            if (isPlaying && elapsedRef.current < totalDuration) {
+                elapsedRef.current = Math.min(
+                    elapsedRef.current + dt * speed,
+                    totalDuration
+                );
+                const overall = elapsedRef.current / totalDuration;
+                setProgress(overall);
 
-                setProgress(overallProgress);
-
-                // Calculate which segment we're on
                 const segmentIndex = Math.min(
-                    Math.floor(overallProgress * flights.length),
+                    Math.floor(overall * flights.length),
                     flights.length - 1
                 );
-                const segmentProgress = (overallProgress * flights.length) - segmentIndex;
-                // Use linear for smoother plane movement (no easing on the interpolation itself)
-                const easedSegmentProgress = Math.min(segmentProgress, 1);
+                const segmentProgress = overall * flights.length - segmentIndex;
 
                 setCurrentFlightIndex(segmentIndex);
-                setFlightProgress(easedSegmentProgress);
+                setFlightProgress(Math.min(segmentProgress, 1));
 
-                // Update plane position
                 const currentFlight = flights[segmentIndex];
-                if (currentFlight && easedSegmentProgress > 0 && easedSegmentProgress < 1) {
+                if (currentFlight && segmentProgress > 0 && segmentProgress < 1) {
                     const position = interpolateGeodesicPoint(
                         currentFlight.originAirport.latitude,
                         currentFlight.originAirport.longitude,
                         currentFlight.destinationAirport.latitude,
                         currentFlight.destinationAirport.longitude,
-                        easedSegmentProgress
+                        segmentProgress
                     );
-
-                    // Calculate altitude to follow the arc curve (parabolic)
-                    // Peaks at midpoint (progress = 0.5)
-                    const altitudeProgress = 1 - Math.pow(2 * easedSegmentProgress - 1, 2);
-                    // Use base altitude to match arcAltitude setting
-                    position.altitude = 0.1 * altitudeProgress;
+                    // Parabolic altitude: 0 at endpoints, peaks at midpoint.
+                    const altitudeFactor = 1 - Math.pow(2 * segmentProgress - 1, 2);
+                    position.altitude = 0.1 * altitudeFactor;
                     setPlanePosition(position);
 
-                    // Camera follows plane (or cinema mode)
-                    // Disabled to allow user interaction during animation
-                    /* 
-                    if (isCinemaMode) {
-                        // Cinema mode: wider view with auto-rotation
-                        globeEl.current?.pointOfView(
-                            {
-                                lat: position.lat,
-                                lng: position.lng + (currentTime / 100) % 360, // Slow rotation
-                                altitude: 2.5,
-                            },
-                            500
-                        );
-                    } else {
-                        // Normal mode: camera follows plane
-                        const flightCameraPos = calculateOptimalCameraPosition(
+                    // Camera follow: smoothly recenter on the plane. Cinema
+                    // mode pulls the camera back for a wider cinematic view.
+                    if (cameraFollow && globeEl.current) {
+                        const framing = calculateOptimalCameraPosition(
                             currentFlight.originAirport.latitude,
                             currentFlight.originAirport.longitude,
                             currentFlight.destinationAirport.latitude,
                             currentFlight.destinationAirport.longitude
                         );
-                        globeEl.current?.pointOfView(
+                        globeEl.current.pointOfView(
                             {
                                 lat: position.lat,
                                 lng: position.lng,
-                                altitude: flightCameraPos.altitude,
+                                altitude: isCinemaMode ? 2.2 : framing.altitude,
                             },
-                            100
+                            200
+                        );
+                    } else if (isCinemaMode && globeEl.current) {
+                        const view = globeEl.current.pointOfView();
+                        globeEl.current.pointOfView(
+                            { ...view, lng: view.lng + dt * 0.005 },
+                            0
                         );
                     }
-                    */
-                } else if (easedSegmentProgress >= 1) {
+                } else if (segmentProgress >= 1) {
                     setPlanePosition(null);
                 }
 
-                if (overallProgress < 1) {
-                    animationRef.current = requestAnimationFrame(animate);
-                } else {
+                if (elapsedRef.current >= totalDuration) {
                     setIsPlaying(false);
-                    setPlanePosition(null);
                 }
-            };
-
-            animationRef.current = requestAnimationFrame(animate);
-        }, 500);
-
-        return () => {
-            clearTimeout(startDelay);
-            if (animationRef.current) {
-                cancelAnimationFrame(animationRef.current);
             }
+
+            animationRef.current = requestAnimationFrame(tick);
         };
-    }, [flights, isPlaying, speed, isCinemaMode, autoPlay, totalDuration]);
 
-    // Handle play/pause
+        animationRef.current = requestAnimationFrame(tick);
+        return () => {
+            if (animationRef.current != null) cancelAnimationFrame(animationRef.current);
+        };
+    }, [flights, totalDuration, isPlaying, speed, cameraFollow, isCinemaMode, reduceMotion]);
+
     const handlePlayPause = useCallback(() => {
-        if (!isPlaying) {
-            // Resume from paused position
-            startTimeRef.current = performance.now() - pausedTimeRef.current;
+        if (elapsedRef.current >= totalDuration) {
+            elapsedRef.current = 0;
+            setProgress(0);
+            setCurrentFlightIndex(0);
+            setFlightProgress(0);
         }
-        setIsPlaying(!isPlaying);
-    }, [isPlaying]);
+        setIsPlaying(prev => !prev);
+    }, [totalDuration]);
 
-    // Handle replay
     const handleReplay = useCallback(() => {
+        elapsedRef.current = 0;
         setProgress(0);
         setCurrentFlightIndex(0);
         setFlightProgress(0);
         setPlanePosition(null);
-        startTimeRef.current = performance.now();
-        pausedTimeRef.current = 0;
         setIsPlaying(true);
     }, []);
 
-    // Handle progress change (scrubbing)
-    const handleProgressChange = useCallback((newProgress: number) => {
-        const segmentIndex = Math.min(
-            Math.floor(newProgress * flights.length),
-            flights.length - 1
-        );
-        const segmentProgress = (newProgress * flights.length) - segmentIndex;
-
-        setProgress(newProgress);
-        setCurrentFlightIndex(segmentIndex);
-        setFlightProgress(segmentProgress);
-
-        // Update time reference
-        pausedTimeRef.current = newProgress * totalDuration / speed;
-        startTimeRef.current = performance.now() - pausedTimeRef.current;
-    }, [flights.length, totalDuration, speed]);
+    const handleProgressChange = useCallback(
+        (newProgress: number) => {
+            const clamped = Math.max(0, Math.min(1, newProgress));
+            elapsedRef.current = clamped * totalDuration;
+            setProgress(clamped);
+            const segmentIndex = Math.min(
+                Math.floor(clamped * flights.length),
+                flights.length - 1
+            );
+            const segmentProgress = clamped * flights.length - segmentIndex;
+            setCurrentFlightIndex(segmentIndex);
+            setFlightProgress(Math.min(segmentProgress, 1));
+        },
+        [flights.length, totalDuration]
+    );
 
     if (flights.length === 0) {
         return (
@@ -405,62 +416,74 @@ export default function AnimatedJourneyGlobe({
                     width={dimensions.width}
                     height={dimensions.height}
                     globeImageUrl={GLOBE_TEXTURES[theme]}
+                    bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
+                    backgroundImageUrl="//unpkg.com/three-globe/example/img/night-sky.png"
                     backgroundColor="rgba(0,0,0,0)"
                     atmosphereColor={theme === 'night' ? '#00ffff' : '#4da6ff'}
-                    atmosphereAltitude={0.15}
+                    atmosphereAltitude={isMobile ? 0.12 : 0.15}
 
-                // Arcs
-                arcsData={arcsData}
-                arcColor="color"
-                arcStroke={0.5}
-                arcAltitude={0.1}
-                arcAltitudeAutoScale={0.3}
-                arcDashLength={(d: any) => d.progress}
-                arcDashGap={2}
-                arcDashInitialGap={(d: any) => 1 - d.progress}
-                arcDashAnimateTime={0}
-                // HTML Elements (airports + plane)
-                htmlElementsData={htmlElements}
-                htmlAltitude={(d: any) => d.isPlane && d.altitude !== undefined ? d.altitude : 0.03}
-                htmlElement={(d: any) => {
-                    const el = document.createElement('div');
+                    arcsData={arcsData}
+                    arcColor="color"
+                    arcStroke={isMobile ? 0.4 : 0.5}
+                    arcAltitude={0.1}
+                    arcAltitudeAutoScale={0.3}
+                    arcDashLength={(d: any) => d.progress}
+                    arcDashGap={2}
+                    arcDashInitialGap={(d: any) => 1 - d.progress}
+                    arcDashAnimateTime={0}
 
-                    if (d.isPlane) {
-                        // Airplane marker with rotation
-                        const currentFlight = flights[currentFlightIndex];
-                        let rotation = 0;
-                        if (currentFlight && planePosition) {
-                            // Calculate bearing by looking slightly ahead on the path
-                            const lookAheadProgress = Math.min(flightProgress + 0.01, 1);
-                            const nextPos = interpolateGeodesicPoint(
-                                currentFlight.originAirport.latitude,
-                                currentFlight.originAirport.longitude,
-                                currentFlight.destinationAirport.latitude,
-                                currentFlight.destinationAirport.longitude,
-                                lookAheadProgress
-                            );
-                            rotation = calculateBearing(
-                                planePosition.lat,
-                                planePosition.lng,
-                                nextPos.lat,
-                                nextPos.lng
-                            );
+                    htmlElementsData={htmlElements}
+                    htmlAltitude={(d: any) =>
+                        d.isPlane && d.altitude !== undefined ? d.altitude : 0.03
+                    }
+                    htmlElement={(d: any) => {
+                        const el = document.createElement('div');
+
+                        if (d.isPlane) {
+                            const currentFlight = flights[currentFlightIndex];
+                            let rotation = 0;
+                            if (currentFlight && planePosition) {
+                                const lookAheadProgress = Math.min(flightProgress + 0.01, 1);
+                                const nextPos = interpolateGeodesicPoint(
+                                    currentFlight.originAirport.latitude,
+                                    currentFlight.originAirport.longitude,
+                                    currentFlight.destinationAirport.latitude,
+                                    currentFlight.destinationAirport.longitude,
+                                    lookAheadProgress
+                                );
+                                rotation = calculateBearing(
+                                    planePosition.lat,
+                                    planePosition.lng,
+                                    nextPos.lat,
+                                    nextPos.lng
+                                );
+                            }
+
+                            // SVG plane rotates on its bearing; emoji fallback was too fuzzy at high DPI.
+                            el.innerHTML = `
+                                <div style="
+                                    transform: translate(-50%, -50%) rotate(${rotation}deg);
+                                    filter: drop-shadow(0 0 10px rgba(0, 255, 255, 0.9));
+                                    pointer-events: none;
+                                ">
+                                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M2.5 19L21.5 12L2.5 5L2.5 10L15 12L2.5 14L2.5 19Z"
+                                              fill="#00ffff" stroke="#0a0e27" stroke-width="0.8" stroke-linejoin="round" />
+                                    </svg>
+                                </div>
+                            `;
+                            return el;
                         }
 
-                        el.innerHTML = `
-                            <div style="
-                                transform: translate(-50%, -50%) rotate(${rotation - 45}deg);
-                                font-size: 28px;
-                                filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.8));
-                                animation: pulse 1s ease-in-out infinite;
-                            ">✈️</div>
-                        `;
-                        el.style.cssText = 'pointer-events: none;';
-                    } else {
-                        // Airport marker
-                        const color = d.isOrigin ? '#00ffff' : d.isDestination ? '#ff6b6b' : '#0096ff';
+                        const color = d.isOrigin
+                            ? '#00ffff'
+                            : d.isDestination
+                                ? '#ff6b6b'
+                                : '#0096ff';
                         const opacity = d.isActive ? 1 : 0.5;
                         const icon = d.isOrigin ? '🛫' : d.isDestination ? '🛬' : '📍';
+                        const textSize = isMobile ? 11 : 12;
+                        const citySize = isMobile ? 8 : 9;
 
                         el.innerHTML = `
                             <div style="
@@ -470,9 +493,10 @@ export default function AnimatedJourneyGlobe({
                                 transform: translate(-50%, -50%);
                                 pointer-events: none;
                                 opacity: ${opacity};
+                                transition: opacity 400ms ease;
                             ">
                                 <div style="
-                                    font-size: 18px;
+                                    font-size: ${isMobile ? 16 : 18}px;
                                     margin-bottom: 4px;
                                     filter: drop-shadow(0 0 8px ${color});
                                 ">${icon}</div>
@@ -486,32 +510,36 @@ export default function AnimatedJourneyGlobe({
                                     <div style="
                                         color: ${color};
                                         font-weight: bold;
-                                        font-size: 12px;
+                                        font-size: ${textSize}px;
                                         text-align: center;
                                         text-shadow: 0 0 8px ${color};
+                                        line-height: 1;
                                     ">${d.text}</div>
                                     <div style="
-                                        color: rgba(255, 255, 255, 0.7);
-                                        font-size: 9px;
+                                        color: rgba(255, 255, 255, 0.75);
+                                        font-size: ${citySize}px;
                                         text-align: center;
                                         margin-top: 2px;
+                                        line-height: 1;
                                     ">${d.city}</div>
                                 </div>
                             </div>
                         `;
-                    }
-                    return el;
-                }}
+                        return el;
+                    }}
 
-                // Controls
-                enablePointerInteraction={true}
-                animateIn={false}
+                    enablePointerInteraction={true}
+                    animateIn={!reduceMotion}
                 />
             )}
 
-            {/* Controls Overlay */}
+            {/* Controls overlay */}
             {showControls && (
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-full max-w-lg px-4 z-20">
+                <div
+                    className={`absolute ${
+                        isMobile ? 'bottom-2 left-2 right-2' : 'bottom-4 left-1/2 -translate-x-1/2 w-full max-w-lg px-4'
+                    } z-20`}
+                >
                     <GlobeControls
                         isPlaying={isPlaying}
                         onPlayPause={handlePlayPause}
@@ -524,16 +552,33 @@ export default function AnimatedJourneyGlobe({
                         onCinemaModeToggle={() => setIsCinemaMode(!isCinemaMode)}
                         theme={theme}
                         onThemeChange={setTheme}
+                        showCinemaMode={!isMobile}
+                        compact={isMobile}
+                        cameraFollow={cameraFollow}
+                        onCameraFollowToggle={() => setCameraFollow(v => !v)}
                     />
                 </div>
             )}
 
-            {/* Flight Counter for multi-segment trips */}
+            {/* Flight counter for multi-segment trips */}
             {flights.length > 1 && (
-                <div className="absolute top-4 right-4 glass rounded-lg px-4 py-2 border border-white/10">
+                <div className="absolute top-4 right-4 glass rounded-lg px-3 py-1.5 border border-white/10 text-sm">
                     <span className="text-white font-medium">
                         Flight {currentFlightIndex + 1} of {flights.length}
                     </span>
+                    {flights[currentFlightIndex] && (
+                        <span className="ml-2 text-gray-400 hidden sm:inline">
+                            {flights[currentFlightIndex].originAirport.iata} →{' '}
+                            {flights[currentFlightIndex].destinationAirport.iata}
+                        </span>
+                    )}
+                </div>
+            )}
+
+            {/* Reduced-motion hint */}
+            {reduceMotion && (
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 glass rounded-full px-3 py-1 border border-white/10 text-xs text-gray-300">
+                    Animation disabled (reduced motion)
                 </div>
             )}
         </div>

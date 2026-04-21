@@ -7373,6 +7373,14 @@ export const AIRPORTS: Airport[] = [
     "longitude": 12.6599
   },
   {
+    "iata": "DIU",
+    "name": "Diu Airport",
+    "city": "Diu",
+    "country": "India",
+    "latitude": 20.7131,
+    "longitude": 70.9211
+  },
+  {
     "iata": "DIY",
     "name": "Diyarbakır Airport",
     "city": "Diyarbakır",
