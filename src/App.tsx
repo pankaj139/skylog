@@ -17,6 +17,7 @@ import { useAchievementsStore } from './store/achievementsStore';
 
 // Pages
 import Auth from './pages/Auth';
+import Landing from './pages/Landing';
 import Dashboard from './pages/Dashboard';
 import History from './pages/History';
 import JourneyDetail from './pages/JourneyDetail';
@@ -44,6 +45,23 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return user ? <>{children}</> : <Navigate to="/auth" replace />;
 }
 
+/**
+ * Root route: public landing for visitors, dashboard for signed-in users.
+ */
+function HomeRoute() {
+  const { user, loading } = useAuthStore();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-dark-bg">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  return user ? <Dashboard /> : <Landing />;
+}
+
 function App() {
   useAuth(); // Initialize auth listener
   const {
@@ -58,14 +76,7 @@ function App() {
     <Router>
       <Routes>
         <Route path="/auth" element={<Auth />} />
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/" element={<HomeRoute />} />
         <Route
           path="/history"
           element={
